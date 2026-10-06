@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>線上點餐</title>
+
+  <style>
+    /* ========== 顏色（淺色／深色模式） ========== */
+    :root {
+      box-sizing: border-box;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      --bg: #faf6f0;      /* 頁面背景 */
+      --card: #ffffff;    /* 卡片背景 */
+      --text: #2b2118;    /* 主要文字 */
+      --muted: #8a7b6d;   /* 次要文字 */
+      --accent: #c8501e;  /* 強調色（按鈕、價格） */
+      --border: #e6dccf;  /* 邊框 */
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #1c1814; --card: #28221c; --text: #f3ece3;
+        --muted: #a69888; --accent: #e8794a; --border: #3c342b;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #1c1814; --card: #28221c; --text: #f3ece3;
+      --muted: #a69888; --accent: #e8794a; --border: #3c342b;
+    }
+
+    /* ========== 基本版面 ========== */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding-bottom: 90px; /* 留空間給底部固定列 */
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    }
+    header { padding: 20px 16px 6px; }
+    h1 { margin: 0; font-size: 22px; }
+    h2 { margin: 22px 16px 4px; font-size: 16px; }
+    .hint { margin: 0 16px 10px; color: var(--muted); font-size: 13px; }
+
+    /* ========== 按鈕 ========== */
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 13px 22px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    button:disabled { background: var(--border); color: var(--muted); }
+
+    /* ========== 餐點卡片 ========== */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 0 16px;
+    }
+    .item {
+      overflow: hidden;
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+    }
+    .item.selected { border-color: var(--accent); }
+    .photo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100px;
+      background: var(--border) center / cover;
+      font-size: 44px;
+    }
+    .info { padding: 8px 10px; }
+    .name { font-weight: 600; font-size: 14px; }
+    .price { color: var(--accent); font-size: 14px; }
+
+    /* 「加入」按鈕 */
+    .add-btn {
+      width: 100%;
+      margin-top: 6px;
+      padding: 8px;
+      border: 1.5px solid var(--accent);
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+    }
+    /* 數量調整 − 3 ＋ */
+    .stepper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 6px;
+    }
+    .stepper b { font-size: 16px; }
+    .stepper button {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 20px;
+    }
+
+    /* ========== 加購項目 ========== */
+    .addons {
+      margin: 0 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .addons.disabled { opacity: .45; pointer-events: none; }
+    .addon {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .addon:last-child { border-bottom: 0; }
+    .addon input { width: 20px; height: 20px; }
+    .addon span:nth-child(2) { flex: 1; }
+
+    /* ========== 桌號 ========== */
+    .table-box { margin: 0 16px; }
+    .table-box input {
+      width: 100%;
+      padding: 13px;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+      color: var(--text);
+      font-size: 18px;
+    }
+
+    /* ========== 底部固定列（合計＋送出） ========== */
+    .bar {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+      background: var(--card);
+      border-top: 1px solid var(--border);
+    }
+    .bar .total { flex: 1; color: var(--muted); font-size: 13px; }
+    .bar .total b { display: block; color: var(--text); font-size: 20px; }
+
+    /* ========== 送出後的確認畫面 ========== */
+    .done { padding: 30px 16px; text-align: center; }
+    .done pre {
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+      text-align: left;
+      white-space: pre-wrap;
+      font: 15px/1.6 inherit;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app"></div>
+
+  <script>
+    /* =====================================================
+     * 一、店員請修改這裡：餐點與加購項目
+     *    img：照片的 data: 網址；沒有照片就顯示 emoji
+     * ===================================================== */
+    const MENU = [
+      { id: 1, name: "餐點 A", price: 120, emoji: "🍜", img: "" },
+      { id: 2, name: "餐點 B", price: 150, emoji: "🍛", img: "" },
+      { id: 3, name: "餐點 C", price: 130, emoji: "🍝", img: "" },
+      { id: 4, name: "餐點 D", price: 160, emoji: "🍱", img: "" },
+      { id: 5, name: "餐點 E", price: 110, emoji: "🥗", img: "" },
+      { id: 6, name: "餐點 F", price: 140, emoji: "🍔", img: "" },
+    ];
+
+    const ADDONS = [
+      { id: "a", name: "加購 1", price: 20 },
+      { id: "b", name: "加購 2", price: 30 },
+      { id: "c", name: "加購 3", price: 40 },
+      { id: "d", name: "加購 4", price: 50 },
+    ];
+
+    const MAX_QTY_PER_ITEM = 9;  // 每項餐點最多可點幾份
+    const TABLE_MIN = 1;         // 桌號最小值
+    const TABLE_MAX = 20;        // 桌號最大值
+
+
+    /* =====================================================
+     * 二、顧客目前的選擇（頁面狀態）
+     * ===================================================== */
+    let quantities = {};   // 餐點數量，例如 { 1: 2, 3: 1 } 代表餐點1點2份、餐點3點1份
+    let addonIds = [];     // 已勾選的加購項目 id
+    let tableNumber = "";  // 桌號（字串）
+    let submitted = null;  // 送出後的訂單內容；null 表示還沒送出
+
+
+    /* =====================================================
+     * 三、小工具與計算
+     * ===================================================== */
+    const $ = (selector) => document.querySelector(selector);
+
+    const findMeal  = (id) => MENU.find((m) => m.id == id);
+    const findAddon = (id) => ADDONS.find((a) => a.id == id);
+
+    // 已選的餐點 id 清單
+    function selectedMealIds() {
+      return Object.keys(quantities).filter((id) => quantities[id] > 0);
+    }
+
+    // 餐點總份數
+    function totalCount() {
+      return selectedMealIds().reduce((sum, id) => sum + quantities[id], 0);
+    }
+
+    // 合計金額 = 餐點（單價 × 數量）+ 加購
+    function totalPrice() {
+      const meals = selectedMealIds().reduce(
+        (sum, id) => sum + findMeal(id).price * quantities[id], 0);
+      const addons = addonIds.reduce(
+        (sum, id) => sum + findAddon(id).price, 0);
+      return meals + addons;
+    }
+
+    // 桌號是否為 1～20 的整數
+    function isTableValid() {
+      const n = Number(tableNumber);
+      return tableNumber !== "" && Number.isInteger(n) && n >= TABLE_MIN && n <= TABLE_MAX;
+    }
+
+    // 是否可以送出：至少 1 項餐點 + 桌號正確
+    function canSubmit() {
+      return selectedMealIds().length > 0 && isTableValid();
+    }
+
+
+    /* =====================================================
+     * 四、使用者操作
+     * ===================================================== */
+
+    // 調整餐點數量（delta 為 +1 或 -1）
+    function changeQuantity(mealId, delta) {
+      const next = (quantities[mealId] || 0) + delta;
+      const clamped = Math.max(0, Math.min(MAX_QTY_PER_ITEM, next));
+
+      if (clamped > 0) quantities[mealId] = clamped;
+      else delete quantities[mealId];
+
+      // 餐點全部取消時，加購也一併清空
+      if (selectedMealIds().length === 0) addonIds = [];
+
+      render();
+    }
+
+    // 勾選／取消加購項目
+    function toggleAddon(id) {
+      addonIds = addonIds.includes(id)
+        ? addonIds.filter((x) => x !== id)
+        : [...addonIds, id];
+      render();
+    }
+
+    // 桌號輸入：只留數字、去掉開頭的 0、超過 20 就修正
+    function onTableInput(input) {
+      let value = input.value.replace(/\D/g, "").replace(/^0+/, "");
+
+      if (value !== "" && Number(value) > TABLE_MAX) {
+        // 例：輸入 25 → 保留 2；輸入 2 再輸入 0 → 20 合法
+        value = value.startsWith("2") ? String(TABLE_MAX) : value.slice(0, 1);
+      }
+
+      input.value = value;
+      tableNumber = value;
+
+      // 只更新按鈕，避免整頁重畫造成輸入框失去焦點
+      $("#submit-btn").disabled = !canSubmit();
+    }
+
+    // 送出訂單
+    function submitOrder() {
+      if (!canSubmit()) return;
+
+      submitted = {
+        text: buildOrderText(),
+        time: new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" }),
+      };
+      render();
+    }
+
+    // 再點一單：清空所有選擇
+    function startNewOrder() {
+      quantities = {};
+      addonIds = [];
+      submitted = null;
+      render();
+    }
+
+    // 組出訂單文字（確認畫面顯示用）
+    function buildOrderText() {
+      const lines = [`桌號：${tableNumber}`, "餐點："];
+
+      selectedMealIds().forEach((id) => {
+        const meal = findMeal(id);
+        lines.push(`・${meal.name} × ${quantities[id]}　$${meal.price * quantities[id]}`);
+      });
+
+      if (addonIds.length > 0) {
+        lines.push("加購：");
+        addonIds.forEach((id) => {
+          const addon = findAddon(id);
+          lines.push(`・${addon.name}　$${addon.price}`);
+        });
+      }
+
+      lines.push(`合計：$${totalPrice()}`);
+      return lines.join("\n");
+    }
+
+
+    /* =====================================================
+     * 五、畫面產生（每個區塊一個函式）
+     * ===================================================== */
+
+    // 單一餐點卡片
+    function renderMealCard(meal) {
+      const qty = quantities[meal.id] || 0;
+      const photoStyle = meal.img ? `style="background-image:url(${meal.img})"` : "";
+      const photoContent = meal.img ? "" : meal.emoji;
+
+      const control = qty > 0
+        ? `<div class="stepper">
+             <button onclick="changeQuantity(${meal.id}, -1)">−</button>
+             <b>${qty}</b>
+             <button onclick="changeQuantity(${meal.id}, 1)">＋</button>
+           </div>`
+        : `<button class="add-btn" onclick="changeQuantity(${meal.id}, 1)">加入</button>`;
+
+      return `
+        <div class="item ${qty > 0 ? "selected" : ""}">
+          <div class="photo" ${photoStyle}>${photoContent}</div>
+          <div class="info">
+            <div class="name">${meal.name}</div>
+            <div class="price">$${meal.price}</div>
+            ${control}
+          </div>
+        </div>`;
+    }
+
+    // ① 餐點選擇區
+    function renderMealsSection() {
+      return `
+        <h2>① 選擇餐點（已選 ${totalCount()} 份）</h2>
+        <p class="hint">至少選 1 項，每項可調整數量</p>
+        <div class="grid">${MENU.map(renderMealCard).join("")}</div>`;
+    }
+
+    // ② 加購區（未選餐點時反灰）
+    function renderAddonsSection() {
+      const hasMeal = selectedMealIds().length > 0;
+
+      const rows = ADDONS.map((addon) => `
+        <label class="addon">
+          <input type="checkbox" ${addonIds.includes(addon.id) ? "checked" : ""}
+                 onchange="toggleAddon('${addon.id}')">
+          <span>${addon.name}</span>
+          <span>+$${addon.price}</span>
+        </label>`).join("");
+
+      return `
+        <h2>② 加購項目（可複選）</h2>
+        <p class="hint">${hasMeal ? "可以加購" : "請先選擇餐點"}</p>
+        <div class="addons ${hasMeal ? "" : "disabled"}">${rows}</div>`;
+    }
+
+    // ③ 桌號區
+    function renderTableSection() {
+      return `
+        <h2>③ 桌號（必填，${TABLE_MIN}～${TABLE_MAX}）</h2>
+        <div class="table-box">
+          <input id="table-input" inputmode="numeric" pattern="[0-9]*" maxlength="2"
+                 placeholder="請輸入 ${TABLE_MIN}～${TABLE_MAX}" oninput="onTableInput(this)">
+        </div>`;
+    }
+
+    // 底部固定列：合計 + 送出按鈕
+    function renderBottomBar() {
+      return `
+        <div class="bar">
+          <div class="total">合計<b>$${totalPrice()}</b></div>
+          <button id="submit-btn" onclick="submitOrder()" ${canSubmit() ? "" : "disabled"}>送出訂單</button>
+        </div>`;
+    }
+
+    // 送出後的確認畫面
+    function renderDoneScreen() {
+      $("#app").innerHTML = `
+        <div class="done">
+          <div style="font-size:48px">✅</div>
+          <h2 style="margin:8px 0">訂單已送出 ${submitted.time}</h2>
+          <pre id="order-text"></pre>
+          <p class="hint">請稍候，店員會為您送餐</p>
+          <button onclick="startNewOrder()">再點一單</button>
+        </div>`;
+      $("#order-text").textContent = submitted.text; // 用 textContent 較安全
+    }
+
+    // 主函式：依目前狀態重畫整個頁面
+    function render() {
+      if (submitted) {
+        renderDoneScreen();
+        return;
+      }
+
+      $("#app").innerHTML = `
+        <header><h1>線上點餐</h1></header>
+        ${renderMealsSection()}
+        ${renderAddonsSection()}
+        ${renderTableSection()}
+        ${renderBottomBar()}`;
+
+      $("#table-input").value = tableNumber; // 重畫後把桌號放回去
+    }
+
+    render(); // 開啟頁面時先畫一次
+  </script>
+</body>
+</html>
